@@ -10,8 +10,11 @@ class GiftController extends Controller
 {
     public function index()
     {
-        // Eager load creator to evitar N+1
-        $gifts = Gift::with('creator')->latest()->paginate(12);
+        // Eager loading para evitar N+1 queries
+        $gifts = Gift::with(['creator'])
+            ->latest()
+            ->paginate(12);
+
         return view('gifts.index', compact('gifts'));
     }
 
@@ -32,20 +35,27 @@ class GiftController extends Controller
             'image' => 'nullable|image|max:2048'
         ]);
 
+        // Manejo de imagen
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('gifts','public');
-            $validated['image_path'] = $path;
+            $validated['image_path'] = $request->file('image')
+                ->store('gifts', 'public');
         }
+
+        // Asignar creador
         $validated['creator_id'] = $request->user()->id;
 
+        // Crear el regalo
         $gift = Gift::create($validated);
 
-        return redirect()->route('gifts.show', $gift)->with('success','Regalo creado.');
+        return redirect()
+            ->route('gifts.show', $gift)
+            ->with('success', 'Regalo creado correctamente.');
     }
 
     public function show(Gift $gift)
     {
-        $gift->load('creator','wishedBy');
+        // Cargar relaciones necesarias
+        $gift->load(['creator', 'wishedBy']);
         return view('gifts.show', compact('gift'));
     }
 
@@ -67,20 +77,33 @@ class GiftController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            // eliminar anterior si existe
-            if ($gift->image_path) Storage::disk('public')->delete($gift->image_path);
-            $validated['image_path'] = $request->file('image')->store('gifts','public');
+
+            // borrar imagen anterior si existe
+            if ($gift->image_path && Storage::disk('public')->exists($gift->image_path)) {
+                Storage::disk('public')->delete($gift->image_path);
+            }
+
+            $validated['image_path'] = $request->file('image')
+                ->store('gifts', 'public');
         }
 
+        // actualizar
         $gift->update($validated);
-        return redirect()->route('gifts.show',$gift)->with('success','Regalo actualizado.');
+
+        return redirect()
+            ->route('gifts.show', $gift)
+            ->with('success', 'Regalo actualizado correctamente.');
     }
 
     public function destroy(Gift $gift)
     {
         $this->authorize('delete', $gift);
-        // soft delete
+
+        // Soft delete (asegurarse que el modelo use SoftDeletes)
         $gift->delete();
-        return redirect()->route('gifts.index')->with('success','Regalo eliminado (soft).');
+
+        return redirect()
+            ->route('gifts.index')
+            ->with('success', 'Regalo eliminado correctamente.');
     }
 }

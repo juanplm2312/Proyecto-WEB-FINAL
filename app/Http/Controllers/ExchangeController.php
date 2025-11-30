@@ -13,17 +13,23 @@ class ExchangeController extends Controller
 {
     public function store(Request $request)
     {
+        // ---- VALIDACIÓN -----
         $validated = $request->validate([
             'gift_id' => 'required|exists:gifts,id',
             'receiver_id' => 'required|exists:users,id',
             'message' => 'nullable|string|max:1000'
         ]);
 
+        // ---- EVITAR QUE SE ENVÍE SU PROPIO REGALO ----
         $gift = Gift::findOrFail($validated['gift_id']);
-        if ($gift->creator_id == $request->user()->id) {
-            return back()->withErrors(['gift_id'=>'No puedes enviar tu propio regalo.']);
+
+        if ($gift->creator_id === $request->user()->id) {
+            return back()->withErrors([
+                'gift_id' => 'No puedes enviar tu propio regalo.'
+            ]);
         }
 
+        // ---- CREAR INTERCAMBIO ----
         $exchange = Exchange::create([
             'sender_id' => $request->user()->id,
             'receiver_id' => $validated['receiver_id'],
@@ -31,9 +37,18 @@ class ExchangeController extends Controller
             'message' => $validated['message'] ?? null
         ]);
 
-        // Enviar correo personalizado al receiver (Mail::to(...)->send(...))
-        Mail::to($exchange->receiver->email)->send(new ExchangeCreated($exchange));
+        // ---- ENVIAR CORREO (con try/catch para evitar crash si falla) ----
+        try {
+            Mail::to($exchange->receiver->email)
+                ->send(new ExchangeCreated($exchange));
+        } catch (\Exception $e) {
+            // No romper la app si falla el SMTP
+            logger()->error("Error enviando correo: " . $e->getMessage());
+        }
 
-        return redirect()->route('exchanges.show',$exchange)->with('success','Intercambio creado.');
+        // ---- REDIRECCIÓN ----
+        return redirect()
+            ->route('exchanges.show', $exchange)
+            ->with('success', 'Intercambio creado correctamente.');
     }
 }
