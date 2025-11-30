@@ -61,4 +61,26 @@ class User extends Authenticatable
             ->map(fn ($word) => Str::substr($word, 0, 1))
             ->implode('');
     }
-}
+    // dentro de la clase User
+    public function giftsCreated()
+    {
+        return $this->hasMany(Gift::class, 'creator_id');
+    }
+
+    public function sentExchanges()
+    {
+        return $this->hasMany(Exchange::class, 'sender_id');
+    }
+
+    public function receivedExchanges()
+    {
+        return $this->hasMany(Exchange::class, 'receiver_id');
+    }
+
+    public function wishlist()
+    {
+        return $this->belongsToMany(Gift::class, 'gift_user')->withTimestamps();
+    }
+
+} 
+
